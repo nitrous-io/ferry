@@ -1,10 +1,8 @@
 package server_test
 
 import (
-	"crypto/tls"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -60,51 +58,51 @@ var _ = Describe("Server", func() {
 		backendIP     string
 		backendPort   string
 		backendCalled int
-		frontend      *httptest.Server
-		proxyServer   *server.Server
-		client        *http.Client
-		err           error
-		fakeClient    *FakeClient
+
+		frontend   *httptest.Server
+		frontendIP string
+
+		proxyServer *server.Server
+		client      *http.Client
+		err         error
+		fakeClient  *FakeClient
 	)
 
 	BeforeEach(func() {
 		fakeClient = &FakeClient{}
 		proxyServer = server.NewServer(fakeClient, 5*time.Second)
+		backendCalled = 0
 	})
 
 	Describe("serving requests as a reverse proxy", func() {
 		BeforeEach(func() {
 			// Setup backend (upstream) server.
 			backend = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				defer GinkgoRecover()
 				backendCalled++
 
-				Expect(r.Header.Get("X-Forwarded-For")).NotTo(BeEmpty())
-				// TODO Add more expectations
+				Expect(r.Host).To(Equal(fmt.Sprintf("container-1.example.com:%s", backendPort)))
+				Expect(r.Header.Get("X-Forwarded-For")).To(ContainSubstring(frontendIP))
 
-				w.Header().Set("X-Race", "half-elf")
+				w.Header().Set("X-Custom-Header", "your-head")
 				w.WriteHeader(http.StatusOK)
 				w.Write([]byte("I'm your backend"))
 			}))
-			hostPort := strings.Replace(backend.URL, "http://", "", -1)
-			backendIP, backendPort, err = net.SplitHostPort(hostPort)
+			backendHostPort := strings.Replace(backend.URL, "http://", "", -1)
+			backendIP, backendPort, err = net.SplitHostPort(backendHostPort)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Setup frontend (reverse proxy) server.
 			frontend = httptest.NewServer(proxyServer)
+			frontendHostPort := strings.Replace(frontend.URL, "http://", "", -1)
+			frontendIP, _, err = net.SplitHostPort(frontendHostPort)
+			Expect(err).NotTo(HaveOccurred())
 			frontendURL, err := url.Parse(frontend.URL)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Setup HTTP client that uses the frontend server as a proxy.
-			tr := &http.Transport{
-				Proxy:           http.ProxyURL(frontendURL),
-				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-			}
+			tr := &http.Transport{Proxy: http.ProxyURL(frontendURL)}
 			client = &http.Client{Transport: tr}
-
-			// Setup fake Freighter client to respond with backend.
-			fakeClient.ContainerMap = map[string]string{
-				"container-1": backendIP,
-			}
 		})
 
 		AfterEach(func() {
@@ -113,13 +111,22 @@ var _ = Describe("Server", func() {
 		})
 
 		Context("when the Freighter client responds with a container that can serve the request", func() {
+			BeforeEach(func() {
+				// Setup fake Freighter client to respond with backend.
+				fakeClient.ContainerMap = map[string]string{
+					"container-1": backendIP,
+				}
+			})
 
-			It("blah blah blah blah blah", func() {
+			It("makes a request to the container and returns its response", func() {
 				url := fmt.Sprintf("http://container-1.example.com:%s/", backendPort)
 				resp, err := client.Get(url)
 				Expect(err).NotTo(HaveOccurred())
-				log.Printf("resp: %v", resp)
-				Expect(resp.Header.Get("X-Race")).To(Equal("half-elf"))
+
+				Expect(backendCalled).To(Equal(1))
+
+				Expect(resp.Header.Get("X-Custom-Header")).To(Equal("your-head"))
+				Expect(resp.StatusCode).To(Equal(http.StatusOK))
 
 				body, err := ioutil.ReadAll(resp.Body)
 				Expect(err).NotTo(HaveOccurred())
@@ -128,29 +135,84 @@ var _ = Describe("Server", func() {
 			})
 
 			Context("when there is a timeout connecting to the container", func() {
-				PIt("asks the Freighter client to refresh container info")
-				PIt("responds with HTTP 502 Gateway Timeout")
+				BeforeEach(func() {
+					proxyServer.BackendDialTimeout = time.Microsecond // Such fast.
+				})
+
+				It("asks the Freighter client to refresh container info", func() {
+					url := fmt.Sprintf("http://container-1.example.com:%s/", backendPort)
+					_, err := client.Get(url)
+					Expect(err).NotTo(HaveOccurred())
+
+					Expect(fakeClient.RefreshCalled).To(BeTrue())
+				})
+
+				It("responds with HTTP 502 Gateway Timeout", func() {
+					url := fmt.Sprintf("http://container-1.example.com:%s/", backendPort)
+					resp, err := client.Get(url)
+					Expect(err).NotTo(HaveOccurred())
+
+					Expect(resp.StatusCode).To(Equal(http.StatusGatewayTimeout))
+
+					body, err := ioutil.ReadAll(resp.Body)
+					Expect(err).NotTo(HaveOccurred())
+					resp.Body.Close()
+					Expect(body).To(ContainSubstring("timeout connecting to backend"))
+				})
 			})
 
 			Context("when the container is not listening to requests", func() {
-				PIt("asks the Freighter client to refresh container info")
-				PIt("responds with HTTP 503 Internal Server Error")
-			})
-
-			Context("when the container can respond to the request", func() {
-				Context("when it is an HTTP request", func() {
-					PIt("proxies the request to the container")
-					PIt("responds with the container's response")
+				BeforeEach(func() {
+					backend.Close()
 				})
 
-				Context("when it is a WebSocket request", func() {
-					PIt("hijacks and proxies the WebSocket connection")
+				It("asks the Freighter client to refresh container info", func() {
+					url := fmt.Sprintf("http://container-1.example.com:%s/", backendPort)
+					_, err := client.Get(url)
+					Expect(err).NotTo(HaveOccurred())
+
+					Expect(fakeClient.RefreshCalled).To(BeTrue())
+				})
+
+				It("responds with HTTP 503 Internal Server Error", func() {
+					url := fmt.Sprintf("http://container-1.example.com:%s/", backendPort)
+					resp, err := client.Get(url)
+					Expect(err).NotTo(HaveOccurred())
+
+					Expect(resp.StatusCode).To(Equal(http.StatusInternalServerError))
+
+					body, err := ioutil.ReadAll(resp.Body)
+					Expect(err).NotTo(HaveOccurred())
+					resp.Body.Close()
+					Expect(body).To(ContainSubstring("could not connect to backend"))
 				})
 			})
 		})
 
 		Context("when the Freighter client says there is no container that can serve the request", func() {
-			PIt("responds with 502 Bad Gateway")
+			BeforeEach(func() {
+				// Setup fake Freighter client with no containers.
+				fakeClient.ContainerMap = map[string]string{}
+			})
+
+			It("responds with an HTTP 502 Bad Gateway", func() {
+				url := fmt.Sprintf("http://container-1.example.com:%s/", backendPort)
+				resp, err := client.Get(url)
+				Expect(err).NotTo(HaveOccurred())
+
+				Expect(backendCalled).To(Equal(0))
+
+				Expect(resp.StatusCode).To(Equal(http.StatusBadGateway))
+
+				body, err := ioutil.ReadAll(resp.Body)
+				Expect(err).NotTo(HaveOccurred())
+				resp.Body.Close()
+				Expect(body).To(ContainSubstring("could not find a backend"))
+			})
+		})
+
+		Context("when it is a WebSocket request", func() {
+			PIt("hijacks and proxies the WebSocket connection")
 		})
 	})
 
