@@ -84,11 +84,10 @@ var _ = Describe("Util", func() {
 			})
 
 			It("sets the Host header to the request's URL host:port", func() {
-				Expect(req.Header.Get("Host")).To(Equal("example.com:3000"))
+				Expect(req.Host).To(Equal("example.com:3000"))
 			})
 
 			It("changes the request's host to IP:port", func() {
-				Expect(req.Host).To(Equal("4.3.2.1:3000"))
 				Expect(req.URL.Host).To(Equal("4.3.2.1:3000"))
 				Expect(req.URL.String()).To(Equal("http://4.3.2.1:3000/fool"))
 			})
@@ -103,11 +102,10 @@ var _ = Describe("Util", func() {
 			})
 
 			It("sets the Host header to the request's URL host", func() {
-				Expect(req.Header.Get("Host")).To(Equal("example.com"))
+				Expect(req.Host).To(Equal("example.com"))
 			})
 
 			It("changes the request's host to IP:80", func() {
-				Expect(req.Host).To(Equal("4.3.2.1:80"))
 				Expect(req.URL.Host).To(Equal("4.3.2.1:80"))
 				Expect(req.URL.String()).To(Equal("http://4.3.2.1:80/bard"))
 			})
@@ -122,11 +120,10 @@ var _ = Describe("Util", func() {
 			})
 
 			It("sets the Host header to the request's URL host", func() {
-				Expect(req.Header.Get("Host")).To(Equal("example.com"))
+				Expect(req.Host).To(Equal("example.com"))
 			})
 
 			It("changes the request's host to IP:443", func() {
-				Expect(req.Host).To(Equal("4.3.2.1:443"))
 				Expect(req.URL.Host).To(Equal("4.3.2.1:443"))
 				Expect(req.URL.String()).To(Equal("https://4.3.2.1:443/rogue"))
 			})

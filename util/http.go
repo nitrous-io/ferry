@@ -33,14 +33,11 @@ func ParseLeftMostLabel(domain string) string {
 }
 
 // ConvertToIPBased modifies an HTTP request to use an IP address as its host.
-// The original host is preserved in the "Host" header.
+// The "Host" header is preserved.
 func ConvertToIPBased(req *http.Request, ip net.IP) *http.Request {
-	req.Header.Set("Host", req.URL.Host)
-
 	// Change Host to "IP:Port".
 	port := ParsePort(req)
-	req.Host = net.JoinHostPort(ip.String(), strconv.Itoa(int(port)))
-	req.URL.Host = req.Host
+	req.URL.Host = net.JoinHostPort(ip.String(), strconv.Itoa(int(port)))
 
 	return req
 }
