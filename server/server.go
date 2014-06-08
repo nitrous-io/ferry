@@ -3,12 +3,12 @@ package server
 import (
 	"bytes"
 	"fmt"
+	"html/template"
 	"log"
 	"net"
 	"net/http"
 	"net/http/httputil"
 	"strings"
-	"text/template"
 	"time"
 
 	"github.com/nitrous-io/ferry/freighter"
