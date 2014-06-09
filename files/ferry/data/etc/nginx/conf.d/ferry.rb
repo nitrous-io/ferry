@@ -15,14 +15,18 @@ upstream ferry {
 
 server {
   listen 80 default_server;
-  listen 443 default_server ssl;
+
+  # TODO: enable this once we have custom TLS certs for boxhosts
+  # listen 443 default_server ssl;
+
   <% (start_port..end_port).each do |port| %>
   listen <%= port %>;
   <% end %>
 
   # injected at build time
-  ssl_certificate /etc/ssl/certs/nitrouspro.crt;
-  ssl_certificate_key /etc/ssl/private/nitrouspro.key;
+  # TODO: enable this once we have custom TLS certs for boxhosts
+  # ssl_certificate /etc/ssl/certs/nitrouspro.crt;
+  # ssl_certificate_key /etc/ssl/private/nitrouspro.key;
 
   location / {
     proxy_pass http://ferry;
