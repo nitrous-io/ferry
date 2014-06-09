@@ -27,3 +27,13 @@ clean:
 
 test:
 	ginkgo -r --trace
+
+cibuild:
+	@echo "$(OK_COLOR)==> Building version $(VERSION)...$(NO_COLOR)"
+	./script/run-build $(VERSION)
+.PHONY: cibuild
+
+release: cibuild
+	@echo "$(OK_COLOR)==> Releaseing version $(VERSION)...$(NO_COLOR)"
+	./script/run-release $(VERSION)
+.PHONY: release
