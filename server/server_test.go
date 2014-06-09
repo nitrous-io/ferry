@@ -161,7 +161,7 @@ var _ = Describe("Server", func() {
 					body, err := ioutil.ReadAll(resp.Body)
 					Expect(err).NotTo(HaveOccurred())
 					resp.Body.Close()
-					Expect(body).To(ContainSubstring("timeout connecting to backend"))
+					Expect(body).To(ContainSubstring("timed out"))
 				})
 			})
 
@@ -188,7 +188,7 @@ var _ = Describe("Server", func() {
 					body, err := ioutil.ReadAll(resp.Body)
 					Expect(err).NotTo(HaveOccurred())
 					resp.Body.Close()
-					Expect(body).To(ContainSubstring("could not connect to backend"))
+					Expect(body).To(ContainSubstring("does not seem to be a server"))
 				})
 			})
 		})
@@ -211,7 +211,7 @@ var _ = Describe("Server", func() {
 				body, err := ioutil.ReadAll(resp.Body)
 				Expect(err).NotTo(HaveOccurred())
 				resp.Body.Close()
-				Expect(body).To(ContainSubstring("could not find a backend"))
+				Expect(body).To(ContainSubstring("does not seem to be a server"))
 			})
 		})
 

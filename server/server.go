@@ -1,7 +1,9 @@
 package server
 
 import (
+	"bytes"
 	"fmt"
+	"html/template"
 	"log"
 	"net"
 	"net/http"
@@ -14,6 +16,11 @@ import (
 	"github.com/nitrous-io/ferry/util"
 )
 
+var backendError = template.Must(template.New("httpError").Parse(backendErrorTmpl))
+
+var serverNotRunningErrorString = "There does not seem to be a server running on this port"
+var serverTimedOutErrorString = "The server timed out on this request"
+
 type Server struct {
 	// BackendDialTimeout specifies the amount of time to wait for a connection
 	// to be established to the backend (i.e. container).
@@ -23,6 +30,23 @@ type Server struct {
 	freighterClient freighter.Client
 }
 
+type backendErrorTemplateData struct {
+	BoxName string
+	Error   string
+}
+
+func (s *Server) errorPage(containerName string, errorString string) string {
+	buf := &bytes.Buffer{}
+	data := &backendErrorTemplateData{BoxName: containerName, Error: errorString}
+
+	err := backendError.Execute(buf, &data)
+	if err != nil {
+		panic("Error compiling backendErrorTemplate")
+	}
+
+	return buf.String()
+}
+
 func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	log.Printf("Request received: %+v", req)
 
@@ -30,7 +54,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	ip := s.freighterClient.ContainerIP(containerName)
 	if ip == nil {
 		log.Printf("unmatched request for %v", req.Host)
-		http.Error(w, "could not find a backend", http.StatusBadGateway)
+		http.Error(w, s.errorPage(containerName, serverNotRunningErrorString), http.StatusBadGateway)
 		return
 	}
 
@@ -46,11 +70,9 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		s.freighterClient.Refresh()
 
 		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
-			http.Error(w, "timeout connecting to backend", http.StatusGatewayTimeout)
+			http.Error(w, s.errorPage(containerName, serverTimedOutErrorString), http.StatusGatewayTimeout)
 		} else {
-			// TODO End-users should see a response indicating that there is
-			// nothing listening on this port.
-			http.Error(w, "could not connect to backend", http.StatusInternalServerError)
+			http.Error(w, s.errorPage(containerName, serverNotRunningErrorString), http.StatusInternalServerError)
 		}
 		log.Printf("could not connect to backend: %v", err)
 		return
