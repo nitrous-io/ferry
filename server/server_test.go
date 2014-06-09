@@ -1,14 +1,17 @@
 package server_test
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"strings"
 	"time"
+
+	"code.google.com/p/go.net/websocket"
 
 	"github.com/nitrous-io/ferry/server"
 
@@ -59,8 +62,9 @@ var _ = Describe("Server", func() {
 		backendPort   string
 		backendCalled int
 
-		frontend   *httptest.Server
-		frontendIP string
+		frontend     *httptest.Server
+		frontendIP   string
+		frontendPort string
 
 		proxyServer *server.Server
 		client      *http.Client
@@ -88,14 +92,14 @@ var _ = Describe("Server", func() {
 				w.WriteHeader(http.StatusOK)
 				w.Write([]byte("I'm your backend"))
 			}))
-			backendHostPort := strings.Replace(backend.URL, "http://", "", -1)
-			backendIP, backendPort, err = net.SplitHostPort(backendHostPort)
+			backendAddr := backend.Listener.Addr().String()
+			backendIP, backendPort, err = net.SplitHostPort(backendAddr)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Setup frontend (reverse proxy) server.
 			frontend = httptest.NewServer(proxyServer)
-			frontendHostPort := strings.Replace(frontend.URL, "http://", "", -1)
-			frontendIP, _, err = net.SplitHostPort(frontendHostPort)
+			frontendAddr := frontend.Listener.Addr().String()
+			frontendIP, _, err = net.SplitHostPort(frontendAddr)
 			Expect(err).NotTo(HaveOccurred())
 			frontendURL, err := url.Parse(frontend.URL)
 			Expect(err).NotTo(HaveOccurred())
@@ -226,8 +230,8 @@ var _ = Describe("Server", func() {
 					handler := http.FileServer(http.Dir("test-fixtures"))
 					handler.ServeHTTP(w, r)
 				}))
-				backendHostPort := strings.Replace(backend.URL, "http://", "", -1)
-				backendIP, backendPort, err = net.SplitHostPort(backendHostPort)
+				backendAddr := backend.Listener.Addr().String()
+				backendIP, backendPort, err = net.SplitHostPort(backendAddr)
 				Expect(err).NotTo(HaveOccurred())
 			})
 
@@ -260,7 +264,66 @@ var _ = Describe("Server", func() {
 		})
 
 		Context("when it is a WebSocket request", func() {
-			PIt("hijacks and proxies the WebSocket connection")
+			var (
+				frontendAddr string
+			)
+
+			BeforeEach(func() {
+				// Backend echo server.
+				backend = httptest.NewServer(websocket.Handler(func(ws *websocket.Conn) {
+					defer GinkgoRecover()
+					backendCalled++
+
+					io.Copy(ws, ws)
+				}))
+				backendAddr := backend.Listener.Addr().String()
+				backendIP, backendPort, err = net.SplitHostPort(backendAddr)
+				Expect(err).NotTo(HaveOccurred())
+
+				// Setup fake Freighter client to respond with backend.
+				fakeClient.ContainerMap = map[string]string{
+					"container-1": backendIP,
+				}
+
+				// Setup frontend (reverse proxy) server.
+				frontend = httptest.NewServer(proxyServer)
+				frontendAddr = frontend.Listener.Addr().String()
+				frontendIP, frontendPort, err = net.SplitHostPort(frontendAddr)
+				Expect(err).NotTo(HaveOccurred())
+			})
+
+			It("hijacks and proxies the WebSocket connection", func() {
+				// Connect to the frontend server via its IP:port.
+				c, err := net.Dial("tcp", frontendAddr)
+				Expect(err).NotTo(HaveOccurred())
+
+				// But use a working container's host + the port the backend
+				// is listening on.
+				containerHost := "container-1.example.com"
+				containerURL := fmt.Sprintf("ws://%s:%s/", containerHost, backendPort)
+				origin := "http://" + containerHost
+				config, err := websocket.NewConfig(containerURL, origin)
+				Expect(err).NotTo(HaveOccurred())
+
+				wsConn, err := websocket.NewClient(config, c)
+				Expect(err).NotTo(HaveOccurred(), "WebSocket handshake error")
+
+				Expect(backendCalled).To(Equal(1))
+
+				msg := []byte("hello hello hello\n")
+				_, err = wsConn.Write(msg)
+				Expect(err).NotTo(HaveOccurred(), "Writing to WebSocket failed")
+
+				reply := make([]byte, 512)
+				n, err := wsConn.Read(reply)
+				Expect(err).NotTo(HaveOccurred(), "Reading from WebSocket failed")
+
+				reply = reply[0:n]
+				Expect(bytes.Equal(msg, reply)).To(BeTrue())
+				Expect(string(reply)).To(Equal("hello hello hello\n"))
+
+				wsConn.Close()
+			})
 		})
 	})
 

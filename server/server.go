@@ -55,18 +55,19 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		log.Printf("could not connect to backend: %v", err)
 		return
 	}
-	defer conn.Close()
+	conn.Close()
+
+	util.ConvertToIPBased(req, ip)
 
 	if isWebSocket(req) {
-		wsp := &proxy.WebSocketReverseProxy{}
+		wsp := &proxy.WebSocketReverseProxy{TCPAddr: tcpAddr}
 		wsp.ServeHTTP(w, req)
 		return
 	}
 
 	proxy := &httputil.ReverseProxy{
 		Director: func(req *http.Request) {
-			util.ConvertToIPBased(req, ip)
-			log.Printf("Modified request: %+v", req)
+			// No-op - request already modified earlier.
 		},
 	}
 	proxy.ServeHTTP(w, req)
