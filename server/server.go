@@ -3,7 +3,6 @@ package server
 import (
 	"bytes"
 	"fmt"
-	"html/template"
 	"log"
 	"net"
 	"net/http"
@@ -16,36 +15,26 @@ import (
 	"github.com/nitrous-io/ferry/util"
 )
 
-var backendError = template.Must(template.New("httpError").Parse(backendErrorTmpl))
+const (
+	serverNotRunning = "There does not seem to be a server running on this port"
+	serverTimedOut   = "The server timed out on this request"
+)
 
-var serverNotRunningErrorString = "There does not seem to be a server running on this port"
-var serverTimedOutErrorString = "The server timed out on this request"
+type (
+	Server struct {
+		// BackendDialTimeout specifies the amount of time to wait for a connection
+		// to be established to the backend (i.e. container).
+		// If 0, a default of 1 minute is used to avoid connection exhaustion.
+		BackendDialTimeout time.Duration
 
-type Server struct {
-	// BackendDialTimeout specifies the amount of time to wait for a connection
-	// to be established to the backend (i.e. container).
-	// If 0, a default of 1 minute is used to avoid connection exhaustion.
-	BackendDialTimeout time.Duration
-
-	freighterClient freighter.Client
-}
-
-type backendErrorTemplateData struct {
-	BoxName string
-	Error   string
-}
-
-func (s *Server) errorPage(containerName string, errorString string) string {
-	buf := &bytes.Buffer{}
-	data := &backendErrorTemplateData{BoxName: containerName, Error: errorString}
-
-	err := backendError.Execute(buf, &data)
-	if err != nil {
-		panic("Error compiling backendErrorTemplate")
+		freighterClient freighter.Client
 	}
 
-	return buf.String()
-}
+	errTemplateData struct {
+		BoxName string
+		Error   string
+	}
+)
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	log.Printf("Request received: %+v", req)
@@ -54,7 +43,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	ip := s.freighterClient.ContainerIP(containerName)
 	if ip == nil {
 		log.Printf("unmatched request for %v", req.Host)
-		http.Error(w, s.errorPage(containerName, serverNotRunningErrorString), http.StatusBadGateway)
+		errorPage(w, http.StatusBadGateway, containerName, serverNotRunning)
 		return
 	}
 
@@ -70,9 +59,9 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		s.freighterClient.Refresh()
 
 		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
-			http.Error(w, s.errorPage(containerName, serverTimedOutErrorString), http.StatusGatewayTimeout)
+			errorPage(w, http.StatusGatewayTimeout, containerName, serverTimedOut)
 		} else {
-			http.Error(w, s.errorPage(containerName, serverNotRunningErrorString), http.StatusInternalServerError)
+			errorPage(w, http.StatusInternalServerError, containerName, serverNotRunning)
 		}
 		log.Printf("could not connect to backend: %v", err)
 		return
@@ -93,11 +82,6 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		},
 	}
 	proxy.ServeHTTP(w, req)
-}
-
-func isWebSocket(req *http.Request) bool {
-	return strings.EqualFold(req.Header.Get("Upgrade"), "websocket") &&
-		strings.EqualFold(req.Header.Get("Connection"), "upgrade")
 }
 
 func (s *Server) Start(host string, port uint16) {
@@ -125,4 +109,18 @@ func NewServer(
 		BackendDialTimeout: timeout,
 		freighterClient:    freighterClient,
 	}
+}
+
+func isWebSocket(req *http.Request) bool {
+	return strings.EqualFold(req.Header.Get("Upgrade"), "websocket") &&
+		strings.EqualFold(req.Header.Get("Connection"), "upgrade")
+}
+
+func errorPage(w http.ResponseWriter, statusCode int, containerName, error string) {
+	buf := &bytes.Buffer{}
+	err := errTemplate.Execute(buf, &errTemplateData{BoxName: containerName, Error: error})
+	if err != nil {
+		http.Error(w, "an unknown error has occurred", http.StatusInternalServerError)
+	}
+	http.Error(w, buf.String(), statusCode)
 }

@@ -1,6 +1,8 @@
 package server
 
-const backendErrorTmpl = `<html>
+import "html/template"
+
+const errTmpl = `<html>
   <head>
     <title>Box not available &middot; Nitrous.IO</title>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,300,700&subset=latin">
@@ -109,3 +111,5 @@ const backendErrorTmpl = `<html>
   </body>
 </html>
 `
+
+var errTemplate = template.Must(template.New("errorPage").Parse(errTmpl))
