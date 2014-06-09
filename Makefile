@@ -11,13 +11,14 @@ all: install
 
 install-deps:
 	@echo "$(OK_COLOR)==> Installing dependencies...$(NO_COLOR)"
-	go get -d -v ./...
+	go get github.com/dqminh/govendor
+	govendor deps.json
 
-build: install-deps
+build:
 	@echo "$(OK_COLOR)==> Building version $(VERSION)...$(NO_COLOR)"
 	go build -ldflags "-X main.version $(VERSION)" -v ./...
 
-install: install-deps
+install:
 	@echo "$(OK_COLOR)==> Installing version $(VERSION)...$(NO_COLOR)"
 	go install -ldflags "-X main.version $(VERSION)" -v ./...
 
