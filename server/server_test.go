@@ -211,6 +211,54 @@ var _ = Describe("Server", func() {
 			})
 		})
 
+		Describe("serving a file download response as a reverse proxy", func() {
+			var file string
+
+			BeforeEach(func() {
+				file = "test-fixtures/test-image.png"
+				backend = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					defer GinkgoRecover()
+					backendCalled++
+
+					Expect(r.Host).To(Equal(fmt.Sprintf("container-1.example.com:%s", backendPort)))
+					Expect(r.Header.Get("X-Forwarded-For")).To(ContainSubstring(frontendIP))
+
+					handler := http.FileServer(http.Dir("test-fixtures"))
+					handler.ServeHTTP(w, r)
+				}))
+				backendHostPort := strings.Replace(backend.URL, "http://", "", -1)
+				backendIP, backendPort, err = net.SplitHostPort(backendHostPort)
+				Expect(err).NotTo(HaveOccurred())
+			})
+
+			Context("when the Freighter client responds with a container that can serve the request", func() {
+				BeforeEach(func() {
+					// Setup fake Freighter client to respond with backend.
+					fakeClient.ContainerMap = map[string]string{
+						"container-1": backendIP,
+					}
+				})
+
+				It("makes a request to the container and returns the file", func() {
+					url := fmt.Sprintf("http://container-1.example.com:%s/test-image.png", backendPort)
+					resp, err := client.Get(url)
+					Expect(err).NotTo(HaveOccurred())
+
+					Expect(backendCalled).To(Equal(1))
+					Expect(resp.StatusCode).To(Equal(http.StatusOK))
+
+					body, err := ioutil.ReadAll(resp.Body)
+					Expect(err).NotTo(HaveOccurred())
+					resp.Body.Close()
+
+					fileData, err := ioutil.ReadFile(file)
+					Expect(err).NotTo(HaveOccurred())
+
+					Expect(body).To(Equal(fileData))
+				})
+			})
+		})
+
 		Context("when it is a WebSocket request", func() {
 			PIt("hijacks and proxies the WebSocket connection")
 		})
