@@ -1,0 +1,20 @@
+[
+  {
+    "vcs": "git",
+    "repo": "https://github.com/onsi/ginkgo",
+    "rev": "51ddbbc2ace9f9ad4cf06ba63442ea2ef2019837",
+    "path": "github.com/onsi/ginkgo"
+  },
+  {
+    "vcs": "git",
+    "repo": "https://github.com/onsi/gomega",
+    "rev": "f5533d435ebfcf4fa0463202dc0e966b983618b8",
+    "path": "github.com/onsi/gomega"
+  },
+  {
+    "vcs": "git",
+    "repo": "https://github.com/fsouza/go-dockerclient",
+    "rev": "6062c6b35beaffaf643b2f80f926b6337c3db63a",
+    "path": "github.com/fsouza/go-dockerclient"
+  }
+]

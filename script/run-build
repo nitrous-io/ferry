@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+
+VERSION=${1:?"version is required"}
+APP=ferry
+
+script/make-image
+
+docker run \
+  --privileged \
+  --volume $(pwd):/opt/src/github.com/nitrous-io/$APP \
+  registry.nitrous.io/$APP script/start-cibuild script/build $VERSION

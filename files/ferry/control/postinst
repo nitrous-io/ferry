@@ -1,0 +1,21 @@
+#!/bin/sh
+set -e
+
+if [ "$1" != "configure" ]; then
+  exit 0
+fi
+
+# Remove nginx default sites-available
+if [ -f /etc/nginx/sites-enabled/default ]; then
+  mv /etc/nginx/sites-enabled/default /etc/nginx/default.disabled
+fi
+
+if [ -n "$2" ]; then
+  _dh_action=restart
+else
+  _dh_action=start
+fi
+service ferry $_dh_action 2>/dev/null || true
+
+echo -n "Restarting nginx service..."
+service nginx restart 2>/dev/null || true
