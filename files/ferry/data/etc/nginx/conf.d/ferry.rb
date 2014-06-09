@@ -21,8 +21,9 @@ server {
   <% end %>
 
   # injected at build time
-  ssl_certificate /etc/ssl/certs/nitrouspro.crt;
-  ssl_certificate_key /etc/ssl/private/nitrouspro.key;
+  # TODO: enable this once we have custom TLS certs for boxhosts
+  # ssl_certificate /etc/ssl/certs/nitrouspro.crt;
+  # ssl_certificate_key /etc/ssl/private/nitrouspro.key;
 
   location / {
     proxy_pass http://ferry;
