@@ -41,11 +41,11 @@ type (
 
 	Container struct {
 		ID      string `json:"id"`
-		Name    string `json:"name`
-		Host    string `json:"host`
-		State   string `json:"state`
-		Image   string `json:"image`
-		SSHPort string `json:"ssh_port`
+		Name    string `json:"name"`
+		Host    string `json:"host"`
+		State   string `json:"state"`
+		Image   string `json:"image"`
+		SSHPort int    `json:"ssh_port"`
 	}
 
 	ContainerResponse struct {
