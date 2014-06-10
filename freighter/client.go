@@ -126,6 +126,7 @@ func (c *DefaultClient) StartEventListener() {
 	// NOTE: Docker 0.11.1 has a bug where only a single Docker event listener
 	// gets changes. Fixed in https://github.com/dotcloud/docker/pull/5827.
 	if err = docker.AddEventListener(listener); err != nil {
+		log.Printf("Cannot add Docker event listener: %v", err)
 		go c.startActivePolling(2 * time.Second)
 		return
 	}

@@ -36,6 +36,8 @@ type (
 	}
 )
 
+var noProxyTransport = &http.Transport{Proxy: nil}
+
 func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	log.Printf("Request received: %+v", req)
 
@@ -77,6 +79,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 
 	proxy := &httputil.ReverseProxy{
+		Transport: noProxyTransport,
 		Director: func(req *http.Request) {
 			// No-op - request already modified earlier.
 		},
