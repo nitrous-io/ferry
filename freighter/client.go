@@ -133,7 +133,7 @@ func (c *DefaultClient) StartEventListener() {
 		for {
 			select {
 			case event := <-listener:
-				if event.Status == "start" || event.Status == "stop" {
+				if event.Status == "start" || event.Status == "die" {
 					c.Update(event.ID)
 				}
 			case <-c.quitEventListener:

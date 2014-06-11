@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/facebookgo/grace/gracehttp"
 	"github.com/nitrous-io/ferry/freighter"
 	"github.com/nitrous-io/ferry/proxy"
 	"github.com/nitrous-io/ferry/util"
@@ -91,8 +92,18 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 }
 
 func (s *Server) Start(host string, port uint16) {
-	err := s.freighterClient.Refresh()
-	if err != nil {
+	s.startFreighterListener()
+
+	svr := &http.Server{Addr: fmt.Sprintf("%s:%d", host, port), Handler: s}
+	if err := gracehttp.Serve(svr); err != nil {
+		log.Printf("ferry: cannot start server: %v", err)
+	}
+	log.Println("ferry: stopped")
+}
+
+// TODO This should probably belong in freighter.Client.
+func (s *Server) startFreighterListener() {
+	if err := s.freighterClient.Refresh(); err != nil {
 		log.Printf("Unable to refresh container info, polling until it becomes available: %v", err)
 		go func() {
 			ticker := time.NewTicker(2 * time.Second)
@@ -106,11 +117,9 @@ func (s *Server) Start(host string, port uint16) {
 				log.Printf("Polling for container info failed: %v", err)
 			}
 		}()
+	} else {
+		s.freighterClient.StartEventListener()
 	}
-
-	http.Handle("/", s)
-	log.Printf("ferry: listening on %s:%d", host, port)
-	log.Fatal(http.ListenAndServe(fmt.Sprintf("%s:%d", host, port), nil))
 }
 
 func NewServer(
