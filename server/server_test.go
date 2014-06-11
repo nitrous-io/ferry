@@ -8,7 +8,6 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"time"
 
 	"code.google.com/p/go.net/websocket"
@@ -67,9 +66,10 @@ var _ = Describe("Server", func() {
 		frontendPort string
 
 		proxyServer *server.Server
-		client      *http.Client
 		err         error
 		fakeClient  *FakeClient
+
+		containerHost string
 	)
 
 	BeforeEach(func() {
@@ -101,12 +101,6 @@ var _ = Describe("Server", func() {
 			frontendAddr := frontend.Listener.Addr().String()
 			frontendIP, _, err = net.SplitHostPort(frontendAddr)
 			Expect(err).NotTo(HaveOccurred())
-			frontendURL, err := url.Parse(frontend.URL)
-			Expect(err).NotTo(HaveOccurred())
-
-			// Setup HTTP client that uses the frontend server as a proxy.
-			tr := &http.Transport{Proxy: http.ProxyURL(frontendURL)}
-			client = &http.Client{Transport: tr}
 		})
 
 		AfterEach(func() {
@@ -120,14 +114,16 @@ var _ = Describe("Server", func() {
 				fakeClient.ContainerMap = map[string]string{
 					"container-1": backendIP,
 				}
+				containerHost = fmt.Sprintf("container-1.example.com:%s", backendPort)
 			})
 
 			It("makes a request to the container and returns its response", func() {
-				url := fmt.Sprintf("http://container-1.example.com:%s/", backendPort)
-				resp, err := client.Get(url)
+				req, _ := http.NewRequest("GET", frontend.URL, nil)
+				req.Host = containerHost
+				resp, err := http.DefaultClient.Do(req)
 				Expect(err).NotTo(HaveOccurred())
 
-				Expect(backendCalled).To(Equal(1))
+				Expect(backendCalled).To(Equal(1), "Backend did not receive a request")
 
 				Expect(resp.Header.Get("X-Custom-Header")).To(Equal("your-head"))
 				Expect(resp.StatusCode).To(Equal(http.StatusOK))
@@ -144,16 +140,18 @@ var _ = Describe("Server", func() {
 				})
 
 				It("asks the Freighter client to refresh container info", func() {
-					url := fmt.Sprintf("http://container-1.example.com:%s/", backendPort)
-					_, err := client.Get(url)
+					req, _ := http.NewRequest("GET", frontend.URL, nil)
+					req.Host = containerHost
+					_, err := http.DefaultClient.Do(req)
 					Expect(err).NotTo(HaveOccurred())
 
 					Expect(fakeClient.RefreshCalled).To(BeTrue())
 				})
 
 				It("responds with HTTP 502 Gateway Timeout", func() {
-					url := fmt.Sprintf("http://container-1.example.com:%s/", backendPort)
-					resp, err := client.Get(url)
+					req, _ := http.NewRequest("GET", frontend.URL, nil)
+					req.Host = containerHost
+					resp, err := http.DefaultClient.Do(req)
 					Expect(err).NotTo(HaveOccurred())
 
 					Expect(resp.StatusCode).To(Equal(http.StatusGatewayTimeout))
@@ -171,16 +169,18 @@ var _ = Describe("Server", func() {
 				})
 
 				It("asks the Freighter client to refresh container info", func() {
-					url := fmt.Sprintf("http://container-1.example.com:%s/", backendPort)
-					_, err := client.Get(url)
+					req, _ := http.NewRequest("GET", frontend.URL, nil)
+					req.Host = containerHost
+					_, err := http.DefaultClient.Do(req)
 					Expect(err).NotTo(HaveOccurred())
 
 					Expect(fakeClient.RefreshCalled).To(BeTrue())
 				})
 
 				It("responds with HTTP 503 Internal Server Error", func() {
-					url := fmt.Sprintf("http://container-1.example.com:%s/", backendPort)
-					resp, err := client.Get(url)
+					req, _ := http.NewRequest("GET", frontend.URL, nil)
+					req.Host = containerHost
+					resp, err := http.DefaultClient.Do(req)
 					Expect(err).NotTo(HaveOccurred())
 
 					Expect(resp.StatusCode).To(Equal(http.StatusInternalServerError))
@@ -197,14 +197,16 @@ var _ = Describe("Server", func() {
 			BeforeEach(func() {
 				// Setup fake Freighter client with no containers.
 				fakeClient.ContainerMap = map[string]string{}
+				containerHost = fmt.Sprintf("container-1.example.com:%s", backendPort)
 			})
 
 			It("responds with an HTTP 502 Bad Gateway", func() {
-				url := fmt.Sprintf("http://container-1.example.com:%s/", backendPort)
-				resp, err := client.Get(url)
+				req, _ := http.NewRequest("GET", frontend.URL, nil)
+				req.Host = containerHost
+				resp, err := http.DefaultClient.Do(req)
 				Expect(err).NotTo(HaveOccurred())
 
-				Expect(backendCalled).To(Equal(0))
+				Expect(backendCalled).To(Equal(0), "Backend received a request when it should not have")
 
 				Expect(resp.StatusCode).To(Equal(http.StatusBadGateway))
 
@@ -241,14 +243,17 @@ var _ = Describe("Server", func() {
 					fakeClient.ContainerMap = map[string]string{
 						"container-1": backendIP,
 					}
+					containerHost = fmt.Sprintf("container-1.example.com:%s", backendPort)
 				})
 
 				It("makes a request to the container and returns the file", func() {
-					url := fmt.Sprintf("http://container-1.example.com:%s/test-image.png", backendPort)
-					resp, err := client.Get(url)
+					imageURL := fmt.Sprintf("%v/test-image.png", frontend.URL)
+					req, _ := http.NewRequest("GET", imageURL, nil)
+					req.Host = containerHost
+					resp, err := http.DefaultClient.Do(req)
 					Expect(err).NotTo(HaveOccurred())
 
-					Expect(backendCalled).To(Equal(1))
+					Expect(backendCalled).To(Equal(1), "Backend did not receive a request")
 					Expect(resp.StatusCode).To(Equal(http.StatusOK))
 
 					body, err := ioutil.ReadAll(resp.Body)
@@ -284,6 +289,7 @@ var _ = Describe("Server", func() {
 				fakeClient.ContainerMap = map[string]string{
 					"container-1": backendIP,
 				}
+				containerHost = fmt.Sprintf("container-1.example.com:%s", backendPort)
 
 				// Setup frontend (reverse proxy) server.
 				frontend = httptest.NewServer(proxyServer)
@@ -299,8 +305,7 @@ var _ = Describe("Server", func() {
 
 				// But use a working container's host + the port the backend
 				// is listening on.
-				containerHost := "container-1.example.com"
-				containerURL := fmt.Sprintf("ws://%s:%s/", containerHost, backendPort)
+				containerURL := fmt.Sprintf("ws://%s/", containerHost)
 				origin := "http://" + containerHost
 				config, err := websocket.NewConfig(containerURL, origin)
 				Expect(err).NotTo(HaveOccurred())
@@ -308,7 +313,7 @@ var _ = Describe("Server", func() {
 				wsConn, err := websocket.NewClient(config, c)
 				Expect(err).NotTo(HaveOccurred(), "WebSocket handshake error")
 
-				Expect(backendCalled).To(Equal(1))
+				Expect(backendCalled).To(Equal(1), "Backend did not receive a request")
 
 				msg := []byte("hello hello hello\n")
 				_, err = wsConn.Write(msg)

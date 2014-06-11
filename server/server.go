@@ -81,7 +81,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	proxy := &httputil.ReverseProxy{
 		Transport: noProxyTransport,
 		Director: func(req *http.Request) {
-			// No-op - request already modified earlier.
+			// Proxies in front of Ferry, e.g. Nginx, will strip away the scheme
+			// (i.e. "http://example.com:3000/foo" becomes "/foo"), so we
+			// explicitly set it.
+			req.URL.Scheme = "http"
 		},
 	}
 	proxy.ServeHTTP(w, req)
