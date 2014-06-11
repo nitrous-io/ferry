@@ -44,7 +44,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	containerName := util.ParseLeftMostLabel(req.Host)
 	ip := s.freighterClient.ContainerIP(containerName)
 	if ip == nil {
-		log.Printf("unmatched request for %v", req.Host)
+		log.Printf("Unmatched request for %v", req.Host)
 		errorPage(w, http.StatusBadGateway, containerName, serverNotRunning)
 		return
 	}
@@ -65,7 +65,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		} else {
 			errorPage(w, http.StatusInternalServerError, containerName, serverNotRunning)
 		}
-		log.Printf("could not connect to backend: %v", err)
+		log.Printf("Could not connect to backend: %v", err)
 		return
 	}
 	conn.Close()
@@ -93,9 +93,20 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 func (s *Server) Start(host string, port uint16) {
 	err := s.freighterClient.Refresh()
 	if err != nil {
-		log.Printf("unable to refresh container info: %v", err)
+		log.Printf("Unable to refresh container info, polling until it becomes available: %v", err)
+		go func() {
+			ticker := time.NewTicker(2 * time.Second)
+			for _ = range ticker.C {
+				err := s.freighterClient.Refresh()
+				if err == nil {
+					log.Println("Successfully refreshed container info")
+					s.freighterClient.StartEventListener()
+					break
+				}
+				log.Printf("Polling for container info failed: %v", err)
+			}
+		}()
 	}
-	s.freighterClient.StartEventListener()
 
 	http.Handle("/", s)
 	log.Printf("ferry: listening on %s:%d", host, port)

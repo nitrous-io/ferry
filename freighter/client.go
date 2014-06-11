@@ -12,7 +12,7 @@ import (
 	dockerclient "github.com/fsouza/go-dockerclient"
 )
 
-const USER_AGENT = "ferry"
+const userAgent = "ferry"
 
 type ContainerNotFoundError string
 
@@ -188,7 +188,7 @@ func (c *DefaultClient) get(path string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", USER_AGENT)
+	req.Header.Set("User-Agent", userAgent)
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := c.client.Do(req)
