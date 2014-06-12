@@ -4,12 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net"
 	"net/http"
 	"time"
 
 	dockerclient "github.com/fsouza/go-dockerclient"
+	"github.com/nitrous-io/ferry/util"
 )
 
 const userAgent = "ferry"
@@ -118,13 +118,13 @@ func (c *DefaultClient) Refresh() error {
 func (c *DefaultClient) StartEventListener() {
 	docker, err := dockerclient.NewClient(c.dockerHost)
 	if err != nil {
-		log.Printf("Unable to connect to Docker daemon: %v", err)
+		util.Logger.Warnf("Unable to connect to Docker daemon: %v", err)
 		go c.startActivePolling(2 * time.Second)
 		return
 	}
 	listener := make(chan *dockerclient.APIEvents)
 	if err = docker.AddEventListener(listener); err != nil {
-		log.Printf("Cannot add Docker event listener: %v", err)
+		util.Logger.Warnf("Cannot add Docker event listener: %v", err)
 		go c.startActivePolling(2 * time.Second)
 		return
 	}
@@ -134,10 +134,11 @@ func (c *DefaultClient) StartEventListener() {
 			select {
 			case event := <-listener:
 				if event.Status == "start" || event.Status == "die" {
+					util.Logger.Debugf("Got Docker event: %v", event)
 					c.Update(event.ID)
 				}
 			case <-c.quitEventListener:
-				log.Print("Quitting Docker event monitor")
+				util.Logger.Info("Quitting Docker event monitor")
 				docker.RemoveEventListener(listener)
 				break
 			}
@@ -168,16 +169,16 @@ func (c *DefaultClient) RemoveContainer(id string) {
 }
 
 func (c *DefaultClient) startActivePolling(interval time.Duration) {
-	log.Printf("Starting active polling for container changes")
+	util.Logger.Debug("Starting active polling for container changes")
 	ticker := time.NewTicker(interval)
 	for {
 		select {
 		case <-ticker.C:
 			if err := c.Refresh(); err != nil {
-				log.Printf("Failed to get container changes: %v", err)
+				util.Logger.Warnf("Failed to get container changes: %v", err)
 			}
 		case <-c.quitEventListener:
-			log.Print("Quitting active polling")
+			util.Logger.Info("Quitting active polling")
 			break
 		}
 	}

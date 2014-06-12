@@ -3,7 +3,6 @@ package server
 import (
 	"bytes"
 	"fmt"
-	"log"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -40,19 +39,19 @@ type (
 var noProxyTransport = &http.Transport{Proxy: nil}
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	log.Printf("Request received: %+v", req)
+	util.Logger.Debugf("Request received: %+v", req)
 
 	containerName := util.ParseLeftMostLabel(req.Host)
 	ip := s.freighterClient.ContainerIP(containerName)
 	if ip == nil {
-		log.Printf("Unmatched request for %v", req.Host)
+		util.Logger.Infof("Unmatched request for %v", req.Host)
 		errorPage(w, http.StatusBadGateway, containerName, serverNotRunning)
 		return
 	}
 
 	port := util.ParsePort(req)
 	tcpAddr := &net.TCPAddr{IP: ip, Port: int(port)}
-	log.Printf("Mapped to container IP and port: %v", tcpAddr)
+	util.Logger.Debugf("Mapped to container IP and port: %v", tcpAddr)
 
 	// Check if the container is still listening.
 	// If it's not, refresh list of containers from Freighter.
@@ -66,7 +65,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		} else {
 			errorPage(w, http.StatusInternalServerError, containerName, serverNotRunning)
 		}
-		log.Printf("Could not connect to backend: %v", err)
+		util.Logger.Warnf("Could not connect to backend: %v", err)
 		return
 	}
 	conn.Close()
@@ -96,25 +95,25 @@ func (s *Server) Start(host string, port uint16) {
 
 	svr := &http.Server{Addr: fmt.Sprintf("%s:%d", host, port), Handler: s}
 	if err := gracehttp.Serve(svr); err != nil {
-		log.Printf("ferry: cannot start server: %v", err)
+		util.Logger.Fatalf("ferry: cannot start server: %v", err)
 	}
-	log.Println("ferry: stopped")
+	util.Logger.Info("ferry: stopped")
 }
 
 // TODO This should probably belong in freighter.Client.
 func (s *Server) startFreighterListener() {
 	if err := s.freighterClient.Refresh(); err != nil {
-		log.Printf("Unable to refresh container info, polling until it becomes available: %v", err)
+		util.Logger.Warnf("Unable to refresh container info, polling until it becomes available: %v", err)
 		go func() {
 			ticker := time.NewTicker(2 * time.Second)
 			for _ = range ticker.C {
 				err := s.freighterClient.Refresh()
 				if err == nil {
-					log.Println("Successfully refreshed container info")
+					util.Logger.Info("Successfully refreshed container info")
 					s.freighterClient.StartEventListener()
 					break
 				}
-				log.Printf("Polling for container info failed: %v", err)
+				util.Logger.Warnf("Polling for container info failed: %v", err)
 			}
 		}()
 	} else {

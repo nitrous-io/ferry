@@ -1,6 +1,12 @@
 [
   {
     "vcs": "git",
+    "repo": "https://github.com/nitrous-io/nitrous-common",
+    "rev": "5528eff62c66f6b1697fe47dd1c853585f92f85d",
+    "path": "github.com/nitrous-io/nitrous-common"
+  },
+  {
+    "vcs": "git",
     "repo": "https://github.com/onsi/ginkgo",
     "rev": "51ddbbc2ace9f9ad4cf06ba63442ea2ef2019837",
     "path": "github.com/onsi/ginkgo"

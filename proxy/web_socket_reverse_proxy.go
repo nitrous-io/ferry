@@ -2,9 +2,10 @@ package proxy
 
 import (
 	"io"
-	"log"
 	"net"
 	"net/http"
+
+	"github.com/nitrous-io/ferry/util"
 )
 
 type WebSocketReverseProxy struct {
@@ -16,7 +17,7 @@ func (h *WebSocketReverseProxy) ServeHTTP(w http.ResponseWriter, req *http.Reque
 	conn, err := net.Dial("tcp", h.TCPAddr.String())
 	if err != nil {
 		http.Error(w, "could not connect to WebSocket backend", http.StatusInternalServerError)
-		log.Printf("could not connect to WebSocket backend: %v", err)
+		util.Logger.Warnf("could not connect to WebSocket backend: %v", err)
 		return
 	}
 	defer conn.Close()
@@ -29,7 +30,7 @@ func (h *WebSocketReverseProxy) ServeHTTP(w http.ResponseWriter, req *http.Reque
 	newConn, _, err := hj.Hijack()
 	if err != nil {
 		http.Error(w, "hijacking failed", http.StatusInternalServerError)
-		log.Printf("hijack error: %v", err)
+		util.Logger.Errorf("hijack error: %v", err)
 		return
 	}
 	defer newConn.Close()
@@ -37,7 +38,7 @@ func (h *WebSocketReverseProxy) ServeHTTP(w http.ResponseWriter, req *http.Reque
 	err = req.Write(conn)
 	if err != nil {
 		http.Error(w, "error writing WebSocket request to backend", http.StatusInternalServerError)
-		log.Print("error writing WebSocket request to backend: %v", err)
+		util.Logger.Warnf("error writing WebSocket request to backend: %v", err)
 		return
 	}
 
