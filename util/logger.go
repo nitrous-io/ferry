@@ -20,6 +20,8 @@ func init() {
 		Logger.Level = logger.LogLevelError
 	case "FATAL":
 		Logger.Level = logger.LogLevelFatal
+	case "QUIET":
+		Logger.Level = logger.LogLevelQuiet
 	default:
 		Logger.Level = logger.LogLevelDebug
 	}

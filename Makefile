@@ -26,7 +26,7 @@ clean:
 	go clean -i -x ./...
 
 test:
-	ginkgo -r --trace
+	LOG_LEVEL=QUIET ginkgo -r --trace
 
 cibuild:
 	@echo "$(OK_COLOR)==> Building version $(VERSION)...$(NO_COLOR)"
