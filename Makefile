@@ -28,6 +28,9 @@ clean:
 test:
 	LOG_LEVEL=QUIET ginkgo -r --trace
 
+bench:
+	LOG_LEVEL=QUIET go test -run=NOTESTS -bench=. -benchmem ./...
+
 cibuild:
 	@echo "$(OK_COLOR)==> Building version $(VERSION)...$(NO_COLOR)"
 	./script/run-build $(VERSION)
