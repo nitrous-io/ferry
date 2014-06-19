@@ -147,5 +147,7 @@ func errorPage(w http.ResponseWriter, statusCode int, containerName, error strin
 	if err != nil {
 		http.Error(w, "an unknown error has occurred", http.StatusInternalServerError)
 	}
-	http.Error(w, buf.String(), statusCode)
+	w.Header().Set("Content-Type", "text/html")
+	w.WriteHeader(statusCode)
+	w.Write([]byte(buf.String()))
 }

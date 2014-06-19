@@ -160,6 +160,7 @@ var _ = Describe("Server", func() {
 					Expect(err).NotTo(HaveOccurred())
 					resp.Body.Close()
 					Expect(body).To(ContainSubstring("timed out"))
+					Expect(resp.Header.Get("Content-Type")).To(Equal("text/html"))
 				})
 			})
 
@@ -189,6 +190,7 @@ var _ = Describe("Server", func() {
 					Expect(err).NotTo(HaveOccurred())
 					resp.Body.Close()
 					Expect(body).To(ContainSubstring("does not seem to be a server"))
+					Expect(resp.Header.Get("Content-Type")).To(Equal("text/html"))
 				})
 			})
 		})
@@ -214,6 +216,7 @@ var _ = Describe("Server", func() {
 				Expect(err).NotTo(HaveOccurred())
 				resp.Body.Close()
 				Expect(body).To(ContainSubstring("does not seem to be a server"))
+				Expect(resp.Header.Get("Content-Type")).To(Equal("text/html"))
 			})
 		})
 
