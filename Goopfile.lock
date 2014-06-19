@@ -3,4 +3,4 @@ github.com/onsi/gomega #036273e6f643552b16fe7a6464afd2ae0324992e
 github.com/fsouza/go-dockerclient #9bfe329389e8b87f98dc79dd2849c4af40196c29
 github.com/facebookgo/grace #feb0fe057f8489897f9206101779f782ae336aa6
 code.google.com/p/go.net/websocket #28ff664507e453c4455b8c65e701bbe2b2ac980d
-github.com/nitrous-io/nitrous-common/logger #5528eff62c66f6b1697fe47dd1c853585f92f85d
+github.com/nitrous-io/nitrous-common #3907104443b52111291b20b73a3fd349f581f8f5
