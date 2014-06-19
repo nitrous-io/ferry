@@ -6,10 +6,12 @@ import (
 	"net"
 	"net/http"
 	"net/http/httputil"
+	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
-	"github.com/facebookgo/grace/gracehttp"
 	"github.com/nitrous-io/ferry/freighter"
 	"github.com/nitrous-io/ferry/proxy"
 	"github.com/nitrous-io/ferry/util"
@@ -22,10 +24,21 @@ const (
 
 type (
 	Server struct {
+		*http.Server
+
 		// BackendDialTimeout specifies the amount of time to wait for a connection
 		// to be established to the backend (i.e. container).
 		// If 0, a default of 1 minute is used to avoid connection exhaustion.
 		BackendDialTimeout time.Duration
+
+		// StopTimeout specifies the amount of time to wait for existing
+		// connections to be closed when the server is stopped. After the
+		// StopTimeout has passed, remaining connections are forcibly closed.
+		// Defaults to 0, where no timeout will be applied (i.e. the server
+		// will only stop after all connections are )
+		StopTimeout time.Duration
+
+		SignalChan chan os.Signal
 
 		freighterClient freighter.Client
 	}
@@ -93,10 +106,99 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 func (s *Server) Start(host string, port uint16) {
 	s.startFreighterListener()
 
-	svr := &http.Server{Addr: fmt.Sprintf("%s:%d", host, port), Handler: s}
-	if err := gracehttp.Serve(svr); err != nil {
+	// FIXME
+	// 1. Abstract all this shit into another package.
+	// 2. Make this server more like a http.Server.
+	connections := map[net.Conn]struct{}{} // Keep a map of active connections.
+	add := make(chan net.Conn)             // New active connections are sent here.
+	remove := make(chan net.Conn)          // Connections that stop being active are sent here.
+
+	// Send a bool channel to this channel that will be notified when there are
+	// no more active connections.
+	stop := make(chan chan bool)
+	kill := make(chan bool) // Force-kill active connections.
+
+	addr := fmt.Sprintf("%s:%d", host, port)
+	s.Server = &http.Server{Addr: addr, Handler: s}
+	listener, err := net.Listen("tcp", addr)
+	if err != nil {
 		util.Logger.Fatalf("ferry: cannot start server: %v", err)
 	}
+
+	s.Server.ConnState = func(conn net.Conn, state http.ConnState) {
+		switch state {
+		case http.StateActive:
+			add <- conn
+		case http.StateClosed, http.StateIdle:
+			remove <- conn
+		case http.StateHijacked:
+			util.Logger.Debugf("Connection hijacked, not sure what to do: %+v", conn.RemoteAddr())
+		}
+	}
+
+	// Manage connections.
+	go func() {
+		var done chan bool
+		for {
+			select {
+			case conn := <-add:
+				util.Logger.Debugf("Connection added: %v", conn.RemoteAddr())
+				connections[conn] = struct{}{}
+			case conn := <-remove:
+				util.Logger.Debugf("Connection removed: %v", conn.RemoteAddr())
+				delete(connections, conn)
+				if done != nil && len(connections) == 0 {
+					done <- true
+					return
+				}
+			case done = <-stop:
+				util.Logger.Debug("Stop requested")
+				if len(connections) == 0 {
+					done <- true
+					return
+				}
+			case <-kill:
+				util.Logger.Debug("Killing all connections")
+				for conn := range connections {
+					conn.Close()
+				}
+				return
+			}
+		}
+	}()
+
+	// Wait for stop signals.
+	signal.Notify(s.SignalChan, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		sig := <-s.SignalChan
+		util.Logger.Debugf("Signal received: %v", sig)
+		s.Server.SetKeepAlivesEnabled(false)
+		listener.Close()
+		signal.Stop(s.SignalChan)
+		close(s.SignalChan)
+	}()
+
+	util.Logger.Debugf("ferry: started listening on %v", addr)
+	err = s.Server.Serve(listener)
+	if err != nil {
+		util.Logger.Fatalf("ferry: cannot start server: %v", err)
+	}
+
+	done := make(chan bool)
+	stop <- done
+
+	if s.StopTimeout > 0 {
+		select {
+		case <-done:
+			util.Logger.Debug("ferry: all connections closed gracefully")
+		case <-time.After(s.StopTimeout):
+			util.Logger.Debug("ferry: timeout reached, force-closing existing connections")
+			kill <- true
+		}
+	} else {
+		<-done
+	}
+
 	util.Logger.Info("ferry: stopped")
 }
 
@@ -123,15 +225,18 @@ func (s *Server) startFreighterListener() {
 
 func NewServer(
 	freighterClient freighter.Client,
+	stopTimeout time.Duration,
 	backendDialTimeout time.Duration,
 ) *Server {
-	timeout := time.Minute
+	dialTimeout := time.Minute
 	if backendDialTimeout != 0 {
-		timeout = backendDialTimeout
+		dialTimeout = backendDialTimeout
 	}
 
 	return &Server{
-		BackendDialTimeout: timeout,
+		BackendDialTimeout: dialTimeout,
+		StopTimeout:        stopTimeout,
+		SignalChan:         make(chan os.Signal, 1),
 		freighterClient:    freighterClient,
 	}
 }

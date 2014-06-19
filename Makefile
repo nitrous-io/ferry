@@ -17,10 +17,12 @@ install-deps:
 build:
 	@echo "$(OK_COLOR)==> Building version $(VERSION)...$(NO_COLOR)"
 	go build -ldflags "-X main.version $(VERSION)" -v ./...
+.PHONY: build
 
 install:
 	@echo "$(OK_COLOR)==> Installing version $(VERSION)...$(NO_COLOR)"
 	go install -ldflags "-X main.version $(VERSION)" -v ./...
+.PHONY: install
 
 clean:
 	go clean -i -x ./...

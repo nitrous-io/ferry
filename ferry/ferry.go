@@ -42,7 +42,7 @@ func init() {
 
 func main() {
 	freighterClient := freighter.NewClient(freighterBaseURL, dockerHost)
-	server := server.NewServer(freighterClient, 5*time.Second) // TODO Make timeout configurable.
+	server := server.NewServer(freighterClient, 5*time.Second, 5*time.Second) // TODO Make timeouts configurable.
 	host := "0.0.0.0"
 	server.Start(host, uint16(*port))
 }

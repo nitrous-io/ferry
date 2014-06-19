@@ -33,7 +33,7 @@ func BenchmarkHTTPReverseProxy(b *testing.B) {
 			"container-1": "0.0.0.0",
 		},
 	}
-	server := server.NewServer(fakeClient, 0)
+	server := server.NewServer(fakeClient, 0, 0)
 
 	w := new(mockResponseWriter)
 	r, _ := http.NewRequest("GET", "/", nil)

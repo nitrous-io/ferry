@@ -8,6 +8,9 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"runtime"
+	"syscall"
 	"time"
 
 	"code.google.com/p/go.net/websocket"
@@ -74,7 +77,7 @@ var _ = Describe("Server", func() {
 
 	BeforeEach(func() {
 		fakeClient = &FakeClient{}
-		proxyServer = server.NewServer(fakeClient, 5*time.Second)
+		proxyServer = server.NewServer(fakeClient, 1*time.Second, 5*time.Second)
 		backendCalled = 0
 	})
 
@@ -336,6 +339,76 @@ var _ = Describe("Server", func() {
 	})
 
 	Describe("Start()", func() {
+		var (
+			stopTimeout time.Duration
+			requestTime time.Duration
+
+			signalChan chan os.Signal
+		)
+
+		BeforeEach(func() {
+			stopTimeout = 500 * time.Millisecond
+			requestTime = 1 * time.Second
+
+			// Setup backend (upstream) server.
+			backend = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				defer GinkgoRecover()
+				backendCalled++
+
+				time.Sleep(requestTime)
+
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte("this is a slow response"))
+			}))
+			backendAddr := backend.Listener.Addr().String()
+			backendIP, backendPort, err = net.SplitHostPort(backendAddr)
+			Expect(err).NotTo(HaveOccurred())
+
+			// Setup fake Freighter client to respond with backend.
+			fakeClient.ContainerMap = map[string]string{
+				"container-1": backendIP,
+			}
+			containerHost = fmt.Sprintf("container-1.example.com:%s", backendPort)
+
+			// Setup reverse proxy server.
+			proxyServer = server.NewServer(fakeClient, stopTimeout, 5*time.Second)
+			signalChan = make(chan os.Signal, 1)
+			proxyServer.SignalChan = signalChan
+		})
+
+		AfterEach(func() {
+			backend.Close()
+		})
+
+		Context("when a SIGTERM signal is received", func() {
+			It("kills existing connections that aren't completed before the stop timeout", func(done Done) {
+				// I'd use port 0 here to get a random port but can't figure out
+				// how to later get the assigned port from a http.Server.
+				go proxyServer.Start("127.0.0.1", 60000)
+
+				// Give server a chance to start.
+				runtime.Gosched()
+				time.Sleep(500 * time.Millisecond)
+
+				req, _ := http.NewRequest("GET", "http://127.0.0.1:60000/", nil)
+				req.Host = containerHost
+
+				go func() {
+					defer GinkgoRecover()
+
+					_, err := http.DefaultClient.Do(req)
+					Expect(err).To(HaveOccurred())
+					Expect(backendCalled).To(Equal(1), "Backend did not receive a request")
+
+					close(done)
+				}()
+				runtime.Gosched()
+				time.Sleep(stopTimeout / 2)
+
+				signalChan <- syscall.SIGTERM
+			}, 2.0)
+		})
+
 		PIt("asks the Freighter client to refresh container info")
 		PIt("asks the Freighter client to start listening to container events")
 		PIt("should probably test that it listens on the given host and port")
@@ -343,13 +416,18 @@ var _ = Describe("Server", func() {
 
 	Describe("NewServer()", func() {
 		It("returns a *Server with a default backend dial timeout of 1 minute", func() {
-			s := server.NewServer(fakeClient, 0)
+			s := server.NewServer(fakeClient, 0, 0)
 			Expect(s.BackendDialTimeout).To(Equal(time.Minute))
 		})
 
 		It("returns a *Server with backend dial timeout set", func() {
-			s := server.NewServer(fakeClient, 5*time.Second)
+			s := server.NewServer(fakeClient, 0, 5*time.Second)
 			Expect(s.BackendDialTimeout).To(Equal(5 * time.Second))
+		})
+
+		It("returns a *Server with stop timeout set", func() {
+			s := server.NewServer(fakeClient, 10*time.Second, 0)
+			Expect(s.StopTimeout).To(Equal(10 * time.Second))
 		})
 	})
 })

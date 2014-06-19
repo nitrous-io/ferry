@@ -22,11 +22,5 @@
     "repo": "https://github.com/fsouza/go-dockerclient",
     "rev": "9bfe329389e8b87f98dc79dd2849c4af40196c29",
     "path": "github.com/fsouza/go-dockerclient"
-  },
-  {
-    "vcs": "git",
-    "repo": "https://github.com/facebookgo/grace",
-    "rev": "feb0fe057f8489897f9206101779f782ae336aa6",
-    "path": "github.com/facebookgo/grace"
   }
 ]
