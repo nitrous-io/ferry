@@ -1,13 +1,8 @@
 #!/usr/bin/env bash
 #Setup the shell environment suitable for running build etc...
 
-# install necessary binaries
-export GOBIN=$(pwd)/_vendor/bin
-mkdir -p $GOBIN
-
 echo "installing dependencies..."
-go get -u github.com/dqminh/govendor
-go install github.com/dqminh/govendor
-$GOBIN/govendor deps.json
+go get github.com/nitrous-io/goop
+goop install
 
 $*

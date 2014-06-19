@@ -2,41 +2,43 @@ NO_COLOR=\033[0m
 OK_COLOR=\033[32;01m
 ERROR_COLOR=\033[31;01m
 WARN_COLOR=\033[33;01m
-
-BASE_VERSION=$(shell cat VERSION)
+BIN_NAME=ferry
 REVISION=$(shell git rev-parse --short HEAD)
+BASE_VERSION=$(shell cat VERSION)
 VERSION=$(BASE_VERSION)-$(REVISION)
 
-all: install
+all: build
 
 install-deps:
-	@echo "$(OK_COLOR)==> Installing dependencies...$(NO_COLOR)"
-	go get github.com/dqminh/govendor
-	govendor deps.json
+	@script/install-deps
 
 build:
-	@echo "$(OK_COLOR)==> Building version $(VERSION)...$(NO_COLOR)"
-	go build -ldflags "-X main.version $(VERSION)" -v ./...
+	@echo "$(OK_COLOR)==> Building revision $(VERSION)...$(NO_COLOR)"
+	@script/build $(VERSION)
 
-install:
-	@echo "$(OK_COLOR)==> Installing version $(VERSION)...$(NO_COLOR)"
-	go install -ldflags "-X main.version $(VERSION)" -v ./...
+release:
+	@echo "$(OK_COLOR)==> Building revision $(VERSION)...$(NO_COLOR)"
+	@./script/run-build $(VERSION)
+	@echo "$(OK_COLOR)==> Releasing revision $(VERSION)...$(NO_COLOR)"
+	@./script/run-release $(VERSION)
+.PHONY: release
 
-clean:
-	go clean -i -x ./...
+format:
+	goop go fmt ./...
 
 test:
-	LOG_LEVEL=QUIET ginkgo -r --trace
+	@echo "$(OK_COLOR)==> Testing...$(NO_COLOR)"
+	@script/test
 
 bench:
-	LOG_LEVEL=QUIET go test -run=NOTESTS -bench=. -benchmem ./...
+	LOG_LEVEL=QUIET goop go test -run=NOTESTS -bench=. -benchmem ./...
 
-cibuild:
-	@echo "$(OK_COLOR)==> Building version $(VERSION)...$(NO_COLOR)"
-	./script/run-build $(VERSION)
-.PHONY: cibuild
+citest:
+	@echo "$(OK_COLOR)==> Testing...$(NO_COLOR)"
+	@script/run-test
 
-release: cibuild
-	@echo "$(OK_COLOR)==> Releaseing version $(VERSION)...$(NO_COLOR)"
-	./script/run-release $(VERSION)
-.PHONY: release
+run: build
+	@echo "$(OK_COLOR)==> Running...$(NO_COLOR)"
+	@build/$(BIN_NAME)
+
+.PHONY: all install-deps build format test run

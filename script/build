@@ -4,10 +4,8 @@ set -e
 
 VERSION=${1:?"version is required"}
 
-APP=ferry
-PACKAGE=github.com/nitrous-io/$APP
 BUILD=$(pwd)/build
 
 mkdir -p $BUILD
 
-GOBIN=$BUILD go install -x -ldflags "-X main.version ${VERSION}" -v $PACKAGE/...
+GOBIN=$BUILD goop go install -x -ldflags "-X main.version ${VERSION}" -v ./...

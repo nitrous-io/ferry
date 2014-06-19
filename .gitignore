@@ -71,3 +71,6 @@ tramp
 
 # Vagrant
 .vagrant
+
+# Goop
+.vendor
