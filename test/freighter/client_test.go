@@ -1,4 +1,4 @@
-package freighter_test
+package freightertest
 
 import (
 	"net/http"

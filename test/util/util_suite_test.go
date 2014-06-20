@@ -1,4 +1,4 @@
-package proxy_test
+package utiltest
 
 import (
 	. "github.com/onsi/ginkgo"
@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func TestProxy(t *testing.T) {
+func TestUtil(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Proxy Suite")
+	RunSpecs(t, "Util Suite")
 }
