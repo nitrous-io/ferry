@@ -8,4 +8,5 @@ BUILD=$(pwd)/build
 
 mkdir -p $BUILD
 
-GOBIN=$BUILD goop go install -x -ldflags "-X main.version ${VERSION}" -v ./...
+GOBIN=$BUILD goop go install -x -ldflags "-X main.version ${VERSION}" -v \
+  github.com/nitrous-io/ferry/ferry
