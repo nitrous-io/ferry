@@ -1,4 +1,4 @@
-package servertest
+package util_test
 
 import (
 	. "github.com/onsi/ginkgo"
@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func TestServer(t *testing.T) {
+func TestUtil(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Server Suite")
+	RunSpecs(t, "Util Suite")
 }

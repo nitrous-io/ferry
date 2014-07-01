@@ -1,3 +1,2 @@
 #!/usr/bin/env bash
-
-goop exec ginkgo -r -trace -keepGoing
+LOG_LEVEL=QUIET goop exec ginkgo -r -trace -keepGoing

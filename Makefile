@@ -21,7 +21,6 @@ release:
 	@./script/run-build $(VERSION)
 	@echo "$(OK_COLOR)==> Releasing revision $(VERSION)...$(NO_COLOR)"
 	@./script/run-release $(VERSION)
-.PHONY: release
 
 format:
 	goop go fmt ./...
@@ -41,4 +40,4 @@ run: build
 	@echo "$(OK_COLOR)==> Running...$(NO_COLOR)"
 	@build/$(BIN_NAME)
 
-.PHONY: all install-deps build format test run
+.PHONY: all install-deps build release format test bench citest run
