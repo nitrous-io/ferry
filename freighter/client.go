@@ -212,16 +212,27 @@ func (c *DefaultClient) get(path string) ([]byte, error) {
 	return body, nil
 }
 
-func NewClient(socket, dockerHost string) *DefaultClient {
-	client := &http.Client{
-		Transport: &http.Transport{
-			Dial: func(network, addr string) (net.Conn, error) {
-				return net.Dial("unix", socket)
-			},
+// NewClient returns a client that:
+// - communicates with freighterd over an unix socket
+// - communicates with dockerHost with the help of go-dockerclient
+func NewClient(freighterEndpoint, dockerHost string) *DefaultClient {
+	tp := &http.Transport{
+		Dial: func(network, addr string) (net.Conn, error) {
+			return net.Dial("unix", freighterEndpoint)
 		},
 	}
+	return NewClientTransport(freighterEndpoint, dockerHost, tp)
+}
+
+// NewClienTransport is internally used in this pkg, and replace the default
+// http client transport with the desired transport if needed
+func NewClientTransport(freighterEndpoint, dockerHost string, tp *http.Transport) *DefaultClient {
+	client := &http.Client{}
+	if tp != nil {
+		client.Transport = tp
+	}
 	return &DefaultClient{
-		Socket:            socket,
+		Socket:            freighterEndpoint,
 		dockerHost:        dockerHost,
 		ContainerMap:      make(map[string]string),
 		nameMap:           make(map[string]string),
