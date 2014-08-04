@@ -53,7 +53,8 @@ var _ = Describe("Client", func() {
 
 		BeforeEach(func() {
 			server = ghttp.NewServer()
-			client = freighter.NewClient(server.URL(), "")
+			url := server.HTTPTestServer.Listener.Addr().String()
+			client = freighter.NewClientTransport(url, "", nil)
 			responseBody = `{
 				"container": {
 					"id":"5ca7067d",
@@ -161,7 +162,8 @@ var _ = Describe("Client", func() {
 
 		BeforeEach(func() {
 			server = ghttp.NewServer()
-			client = freighter.NewClient(server.URL(), "")
+			url := server.HTTPTestServer.Listener.Addr().String()
+			client = freighter.NewClientTransport(url, "", nil)
 			responseBody = `{
 				"containers": [
 					{

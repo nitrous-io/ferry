@@ -30,7 +30,7 @@ type (
 	}
 
 	DefaultClient struct {
-		BaseURL      string
+		Socket       string
 		ContainerMap map[string]string // Map of "container name/ID" -> "ip address"
 
 		nameMap           map[string]string // Internally used map of "container ID" -> "container name"
@@ -70,7 +70,7 @@ func (c *DefaultClient) ContainerIP(identifier string) net.IP {
 // Update queries a Freighter server for the container with given id and updates
 // its ContainerMap with the container's IP address.
 func (c *DefaultClient) Update(id string) error {
-	data, err := c.get(fmt.Sprintf("containers/%s", id))
+	data, err := c.get(fmt.Sprintf("/containers/%s", id))
 	if err != nil {
 		if _, ok := err.(ContainerNotFoundError); ok {
 			c.RemoveContainer(id)
@@ -93,7 +93,7 @@ func (c *DefaultClient) Update(id string) error {
 //   "container name/ID" -> "ip address".
 func (c *DefaultClient) Refresh() error {
 	// TODO There only needs to be 1 refresh request running at any one time.
-	data, err := c.get("containers")
+	data, err := c.get("/containers")
 	if err != nil {
 		return err
 	}
@@ -185,10 +185,12 @@ func (c *DefaultClient) startActivePolling(interval time.Duration) {
 }
 
 func (c *DefaultClient) get(path string) ([]byte, error) {
-	req, err := http.NewRequest("GET", c.getURL(path), nil)
+	req, err := http.NewRequest("GET", path, nil)
 	if err != nil {
 		return nil, err
 	}
+	req.URL.Host = c.Socket
+	req.URL.Scheme = "http"
 	req.Header.Set("User-Agent", userAgent)
 	req.Header.Set("Content-Type", "application/json")
 
@@ -210,17 +212,31 @@ func (c *DefaultClient) get(path string) ([]byte, error) {
 	return body, nil
 }
 
-func (c *DefaultClient) getURL(path string) string {
-	return fmt.Sprintf("%s/%s", c.BaseURL, path)
+// NewClient returns a client that:
+// - communicates with freighterd over an unix socket
+// - communicates with dockerHost with the help of go-dockerclient
+func NewClient(freighterEndpoint, dockerHost string) *DefaultClient {
+	tp := &http.Transport{
+		Dial: func(network, addr string) (net.Conn, error) {
+			return net.Dial("unix", freighterEndpoint)
+		},
+	}
+	return NewClientTransport(freighterEndpoint, dockerHost, tp)
 }
 
-func NewClient(baseURL, dockerHost string) *DefaultClient {
+// NewClienTransport is internally used in this pkg, and replace the default
+// http client transport with the desired transport if needed
+func NewClientTransport(freighterEndpoint, dockerHost string, tp *http.Transport) *DefaultClient {
+	client := &http.Client{}
+	if tp != nil {
+		client.Transport = tp
+	}
 	return &DefaultClient{
-		BaseURL:           baseURL,
+		Socket:            freighterEndpoint,
 		dockerHost:        dockerHost,
 		ContainerMap:      make(map[string]string),
 		nameMap:           make(map[string]string),
-		client:            &http.Client{},
+		client:            client,
 		quitEventListener: make(chan bool),
 	}
 }
