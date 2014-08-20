@@ -1,0 +1,5 @@
+#!/bin/bash
+APP=${1:?"app is required"}
+VERSION=${2:?"version is required"}
+
+docker build -t $APP:$VERSION .

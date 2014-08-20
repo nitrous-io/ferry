@@ -1,0 +1,17 @@
+#!/bin/bash
+export APP=${1:?"app name is required"}
+export VERSION=${2:?"version is required"}
+
+HOST_BUILD_DIR=/tmp/$APP/$VERSION
+rm -rf $HOST_BUILD_DIR
+mkdir -p $HOST_BUILD_DIR
+tmp=$(mktemp -d /tmp/docker_XXXXX)
+
+docker run \
+  --privileged=true \
+  --cidfile $tmp/$APP \
+  -v $(readlink -f $SSH_AUTH_SOCK):/ssh-agent -e SSH_AUTH_SOCK=/ssh-agent \
+  $APP:$VERSION ./script/build-docker $APP $VERSION
+
+cid=`cat $tmp/$APP`
+docker cp $cid:/opt/src/github.com/nitrous-io/$APP/build/$APP $HOST_BUILD_DIR/

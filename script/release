@@ -1,75 +1,73 @@
-#!/usr/bin/env bash
-# create .deb file for ferry
-#
-# This requires the binary to be built and placed into ./build
+#!/bin/bash
+set -e
 
-PKGNAME="ferry"
-PKGVERSION="$1"
-PACKAGE_URL="http://nitrous.io/"
+APP=${1:?"app name is required"}
+VERSION=${2:?"version is required"}
+ARTIFACT_DIR=/tmp/$APP/$VERSION
+
+PACKAGE_NAME=$APP
+PACKAGE_VERSION=$VERSION
 PACKAGE_ARCHITECTURE="$(dpkg-architecture -qDEB_HOST_ARCH)"
-PACKAGE_DESCRIPTION="Nitrous.IO HTTP proxy for boxhost"
-PACKAGE_LICENSE="Private"
+PACKAGE_DESCRIPTION="Nitrous.IO's host HTTP proxy"
+PACKAGE_MAINTAINER="eng@nitrous.io"
+PACKAGE_LICENSE="All Rights Reserved - Irrational Industries d/b/a Nitrous.IO"
+PACKAGE_URL="nitrous.io"
 
-BUILD=$WORKDIR/build # where we store ferry binary
-FILES=$WORKDIR/files/$PKGNAME # where we store configuration files
-PKGDIR=/opt/$PKGNAME/build # /opt/ferry/build is mapped to $HOME/build on the host
+FILES=./files/$PACKAGE_NAME # where we store configuration files
+PKGDIR=$ARTIFACT_DIR
 
-echo "PKGDIR: $PKGDIR"
+rm -rf $PKGDIR/*.deb
 
-bundle() {
-  rm -rf $PKGDIR
-  mkdir -p $PKGDIR
+# install our control files over to $PKDIR
+install -m 0644 -D $FILES/control/preinst $PKGDIR/$FILES/control/preinst
+install -m 0644 -D $FILES/control/postinst $PKGDIR/$FILES/control/postinst
+install -m 0644 -D $FILES/control/prerm $PKGDIR/$FILES/control/prerm
 
-  # install our ferry configuration
-  install -m 0644 -D $FILES/data/etc/init/ferry.conf $PKGDIR/etc/init/ferry.conf
+# install our ferry configuration
+install -m 0644 -D $FILES/data/etc/init/ferry.conf $PKGDIR/etc/init/ferry.conf
 
-  # install our nginx configuration
-  ruby $FILES/data/etc/nginx/conf.d/ferry.rb $FILES/data/etc/nginx/conf.d/ferry.conf
-  install -m 0644 -D $FILES/data/etc/nginx/conf.d/ferry.conf $PKGDIR/etc/nginx/conf.d/ferry.conf
+# install our nginx configuration
+ruby $FILES/data/etc/nginx/conf.d/ferry.rb $FILES/data/etc/nginx/conf.d/ferry.conf
+install -m 0644 -D $FILES/data/etc/nginx/conf.d/ferry.conf $PKGDIR/etc/nginx/conf.d/ferry.conf
 
-  # install our ferry binary
-  install -m 0755 -D $BUILD/ferry $PKGDIR/usr/sbin/ferry
+# install our ferry binary
+install -m 0755 -D $BUILD/ferry $PKGDIR/usr/sbin/ferry
 
-  (
-  cd $PKGDIR
+# TODO: we wants --depends docker.io too
 
-  fpm \
-    -s dir \
-    -C $PKGDIR \
-    --name $PKGNAME-$PKGVERSION \
-    --version $PKGVERSION \
-    --architecture "$PACKAGE_ARCHITECTURE" \
-    --prefix / \
-    --description "$PACKAGE_DESCRIPTION" \
-    --maintainer "$PACKAGE_MAINTAINER" \
-    --provides $PKGNAME \
-    --replaces $PKGNAME \
-    --depends nginx \
-    --after-install $FILES/control/postinst \
-    --before-remove $FILES/control/prerm \
-    --config-files /etc/init/ferry.conf \
-    --config-files /etc/nginx/conf.d/ferry.conf \
-    --deb-compression gz \
-    -t deb .
+cd $PKGDIR
+rm -f *.deb
 
-  fpm -s empty \
-    --name $PKGNAME \
-    --version $PKGVERSION \
-    --architecture "$PACKAGE_ARCHITECTURE" \
-    --depends $PKGNAME-$PKGVERSION \
-    --description "$PACKAGE_DESCRIPTION" \
-    --maintainer "$PACKAGE_MAINTAINER" \
-    --url "$PACKAGE_URL" \
-    --license "$PACKAGE_LICENSE" \
-    --deb-compression gz \
-    -t deb
-  )
+fpm \
+  -s dir \
+  --name $PACKAGE_NAME \
+  --version $PACKAGE_VERSION \
+  --architecture "$PACKAGE_ARCHITECTURE" \
+  --prefix / \
+  --description "$PACKAGE_DESCRIPTION" \
+  --maintainer "$PACKAGE_MAINTAINER" \
+  --provides $PACKAGE_NAME \
+  --replaces $PACKAGE_NAME \
+  --before-install $FILES/control/preinst \
+  --after-install $FILES/control/postinst \
+  --before-remove $FILES/control/prerm \
+  --config-files /etc/init/ferry.conf \
+  --config-files /etc/nginx/conf.d/ferry.conf \
+  --license "$PACKAGE_LICENSE" \
+  --url "$PACKAGE_URL" \
+  --deb-compression gz \
+  -t deb .
 
-  # cleanup the build directory
-  rm -rf $PKGDIR/etc
-  rm -rf $PKGDIR/usr
-  rm -rf $PKGDIR/var
-  rm -rf $PKGDIR/lib
-}
+# cleanup the build directory
+rm -rf $PKGDIR/{usr,etc,var,lib}
 
-bundle
+DEB=${APP}_${VERSION}_amd64.deb
+
+cd $ARTIFACT_DIR
+if [[ -f $DEB ]]; then
+  echo "Adding $DEB to repository"
+  deb-upload apt.nitrous.io $DEB private 6B19EAE0
+else
+  echo "Failed to find deb package: $DEB in $ARTIFACT_DIR directory."
+  exit 1
+fi

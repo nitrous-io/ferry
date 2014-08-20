@@ -1,14 +1,11 @@
 #!/usr/bin/env bash
-# we get primary version from `VERSION` file
 set -e
 
-VERSION=${1:?"version is required"}
+export APP=${1:?"app name is required"}
+export VERSION=${2:?"version is required"}
+BUILD_DIR=./build
 
-BUILD=$(pwd)/build
-
-mkdir -p $BUILD
-
-goop go install -x -ldflags "-X main.version ${VERSION}" -v \
-  github.com/nitrous-io/ferry/ferry
-
-cp .vendor/bin/ferry $BUILD/ferry
+rm -f "$BUILD_DIR/$APP"
+mkdir -p "$BUILD_DIR"
+VERSION=$VERSION goop go install -x -ldflags "-X main.version ${VERSION}" -v ./...
+BUILD_DIR=$BUILD_DIR goop exec bash -c 'cp $GOBIN/$APP $BUILD_DIR/$APP'

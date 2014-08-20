@@ -1,0 +1,6 @@
+#!/bin/bash
+
+export APP=${1:?"app name is required"}
+export VERSION=${2:?"version is required"}
+
+./script/install-deps && ./script/test && ./script/build $APP $VERSION
